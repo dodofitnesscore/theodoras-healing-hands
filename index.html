@@ -36,10 +36,10 @@ async function loadData(){
  clients=cr||[];appointments=ar||[];renderApp();
 }
 function renderApp(){
- document.getElementById('root').innerHTML='<div class="head"><div class="brand" style="color:#fff">Theodora\'s Healing Hands</div><div style="font-size:11px;opacity:.7">Ημερολόγιο • Πελάτες • Έσοδα</div></div><div class="tabs"><button id="calBtn" class="on">Ημερολόγιο</button><button id="clientsBtn">Πελάτες</button><button id="incomeBtn">Έσοδα</button></div><div id="content"></div><button id="fab" class="fab">＋ Νέο Ραντεβού</button><div id="modal" class="modal"></div>';
- document.getElementById('calBtn').onclick=()=>showTab('cal');document.getElementById('clientsBtn').onclick=()=>showTab('clients');document.getElementById('incomeBtn').onclick=()=>showTab('income');document.getElementById('fab').onclick=()=>openForm();showTab('cal');
+ document.getElementById('root').innerHTML='<div class="head"><div class="brand" style="color:#fff">Theodora\'s Healing Hands</div><div style="font-size:11px;opacity:.7">Ημερολόγιο • Πελάτες • Έσοδα</div></div><div class="tabs"><button id="calBtn" class="on">Ημερολόγιο</button><button id="clientsBtn">Πελάτες</button><button id="incomeBtn">Έσοδα</button><button id="remindersBtn">🔔 Υπενθυμίσεις</button></div><div id="content"></div><button id="fab" class="fab">＋ Νέο Ραντεβού</button><div id="modal" class="modal"></div>';
+ document.getElementById('calBtn').onclick=()=>showTab('cal');document.getElementById('clientsBtn').onclick=()=>showTab('clients');document.getElementById('incomeBtn').onclick=()=>showTab('income');document.getElementById('remindersBtn').onclick=()=>showTab('reminders');document.getElementById('fab').onclick=()=>openForm();showTab('cal');startReminderWatcher();
 }
-function showTab(v){document.getElementById('calBtn').classList.toggle('on',v==='cal');document.getElementById('clientsBtn').classList.toggle('on',v==='clients');document.getElementById('incomeBtn').classList.toggle('on',v==='income');if(v==='cal')calendar();if(v==='clients')renderClients();if(v==='income')renderIncome()}
+function showTab(v){document.getElementById('calBtn').classList.toggle('on',v==='cal');document.getElementById('clientsBtn').classList.toggle('on',v==='clients');document.getElementById('incomeBtn').classList.toggle('on',v==='income');document.getElementById('remindersBtn').classList.toggle('on',v==='reminders');if(v==='cal')calendar();if(v==='clients')renderClients();if(v==='income')renderIncome();if(v==='reminders')renderReminders()}
 function calendar(){
  let first=new Date(cursor.getFullYear(),cursor.getMonth(),1),start=(first.getDay()+6)%7,days=new Date(cursor.getFullYear(),cursor.getMonth()+1,0).getDate(),h='<div class="bar"><button class="nav" id="prev">‹</button><h2>'+['Ιανουάριος','Φεβρουάριος','Μάρτιος','Απρίλιος','Μάιος','Ιούνιος','Ιούλιος','Αύγουστος','Σεπτέμβριος','Οκτώβριος','Νοέμβριος','Δεκέμβριος'][cursor.getMonth()]+' '+cursor.getFullYear()+'</h2><button class="nav" id="next">›</button></div><div class="week"><span>ΔΕ</span><span>ΤΡ</span><span>ΤΕ</span><span>ΠΕ</span><span>ΠΑ</span><span>ΣΑ</span><span>ΚΥ</span></div><div class="grid">';
  for(let i=0;i<start;i++)h+='<div></div>';
@@ -104,6 +104,47 @@ function editClient(id){
   }catch(e){alert(e.message)}
  };
 }
+function reminderMinutes(){return Number(localStorage.getItem('thh_reminder_minutes')||60)}
+function reminderEnabled(){return localStorage.getItem('thh_reminders_enabled')==='1'}
+async function enableReminders(){
+ if(!('Notification' in window)){alert('Το iPhone δεν υποστηρίζει ειδοποιήσεις από αυτό το περιβάλλον. Πρόσθεσε την εφαρμογή στην Αρχική οθόνη και άνοιξέ την από εκεί.');return}
+ const p=await Notification.requestPermission();
+ if(p==='granted'){localStorage.setItem('thh_reminders_enabled','1');renderReminders();sendTestNotification()}
+ else{localStorage.setItem('thh_reminders_enabled','0');alert('Οι ειδοποιήσεις δεν ενεργοποιήθηκαν.')}
+}
+function disableReminders(){localStorage.setItem('thh_reminders_enabled','0');renderReminders()}
+function sendTestNotification(){
+ try{new Notification('Theodora’s Healing Hands',{body:'Οι υπενθυμίσεις ραντεβού είναι ενεργές. 🔔'})}catch(e){}
+}
+function clientName(id){return ((clients.find(function(c){return c.id===id})||{}).name)||'Πελάτης'}
+function upcomingAppointments(){
+ const now=new Date();
+ const horizon=new Date(now.getTime()+7*24*60*60*1000);
+ return appointments.filter(function(a){
+  if(a.status==='completed'||a.status==='cancelled')return false;
+  const dt=new Date(a.date+'T'+a.time);
+  return dt>=now&&dt<=horizon;
+ }).sort(function(a,b){return (a.date+a.time).localeCompare(b.date+b.time)});
+}
+function renderReminders(){
+ const arr=upcomingAppointments(),mins=reminderMinutes(),enabled=reminderEnabled();
+ const opts='<option value="1440" '+(mins===1440?'selected':'')+'>24 ώρες πριν</option><option value="60" '+(mins===60?'selected':'')+'>1 ώρα πριν</option><option value="30" '+(mins===30?'selected':'')+'>30 λεπτά πριν</option>';
+ document.getElementById('content').innerHTML='<div class="section"><h3>Υπενθυμίσεις ραντεβού</h3><div class="card"><div class="body"><div class="name">Ειδοποιήσεις</div><div class="meta">'+(enabled?'Ενεργές':'Ανενεργές')+'</div></div><button class="small" id="toggleReminder">'+(enabled?'Απενεργοποίηση':'Ενεργοποίηση')+'</button></div><label class="label">Υπενθύμιση</label><select class="input" id="reminderSelect">'+opts+'</select><div class="meta" style="margin-top:10px">Οι ειδοποιήσεις που βλέπεις εδώ λειτουργούν όταν η εφαρμογή είναι ανοιχτή. Για ειδοποίηση στο κλειδωμένο iPhone ενώ η εφαρμογή είναι κλειστή, χρειάζεται Web Push σύνδεση.</div><h3 style="margin-top:22px">Επόμενα ραντεβού</h3>'+(arr.length?arr.map(function(a){return '<div class="card"><div><b>'+esc(a.date)+'</b><br>'+esc(a.time)+'</div><div class="body"><div class="name">'+esc(clientName(a.client_id))+'</div><div class="meta">'+esc(a.service||'')+' · '+esc(a.location||'')+'<br>Υπενθύμιση: '+new Date(new Date(a.date+'T'+a.time).getTime()-mins*60000).toLocaleString('el-GR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div></div><div class="price">'+Number(a.price||0).toFixed(2)+'€</div></div>'}).join(''):'<div class="empty">Δεν υπάρχουν επόμενα ραντεβού μέσα στις επόμενες 7 ημέρες.</div>')+'</div>';
+ document.getElementById('toggleReminder').onclick=function(){if(enabled)disableReminders();else enableReminders()};
+ document.getElementById('reminderSelect').onchange=function(){localStorage.setItem('thh_reminder_minutes',this.value);renderReminders()};
+}
+function checkDueReminders(){
+ if(!reminderEnabled()||!('Notification' in window)||Notification.permission!=='granted')return;
+ const now=Date.now(),mins=reminderMinutes(),fired=JSON.parse(localStorage.getItem('thh_fired_reminders')||'{}');
+ appointments.forEach(function(a){
+  if(a.status==='completed'||a.status==='cancelled')return;
+  const ts=new Date(a.date+'T'+a.time).getTime(), key=a.id+'_'+mins;
+  if(now>=ts-mins*60000&&now<ts-mins*60000+90000&&!fired[key]){
+   try{new Notification('Ραντεβού σε '+(mins>=60?(mins/60)+' ώρα':'30 λεπτά'),{body:clientName(a.client_id)+' • '+a.time+' • '+(a.service||'Μασάζ')});fired[key]=true;localStorage.setItem('thh_fired_reminders',JSON.stringify(fired))}catch(e){}
+  }
+ });
+}
+function startReminderWatcher(){if(window.thhReminderTimer)return;checkDueReminders();window.thhReminderTimer=setInterval(checkDueReminders,30000)}
 function renderIncome(){
  const content=document.getElementById('content');
  let selectedPeriod='month';
