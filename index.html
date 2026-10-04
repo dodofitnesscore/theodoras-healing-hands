@@ -56,5 +56,28 @@ async function toggleDone(id){let a=appointments.find(x=>x.id==id),status=a.stat
 async function deleteAppointment(id){if(!confirm('Να διαγραφεί το ραντεβού;'))return;let r=await sb.from('appointments').delete().eq('id',id);if(r.error)return alert(r.error.message);await loadCloud()}
 function showHistory(id){const c=clients.find(x=>x.id==id);const hist=appointments.filter(a=>a.client_id==id).sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time));document.getElementById('historyTitle').textContent=c?c.name:'Ιστορικό πελάτη';let body='<div class="meta">'+esc(c&&c.phone?c.phone:'Χωρίς τηλέφωνο')+'</div>';if(hist.length){body+=hist.map(function(a){return '<div class="card '+(a.status=='completed'?'done':'')+'"><div>'+a.date.slice(8)+'<br>'+a.time+'</div><div class="body"><div class="name">'+esc(a.service)+'</div><div class="meta">'+esc(a.location||'')+' · '+(a.status=='completed'?'Ολοκληρώθηκε':'Προγραμματισμένο')+'</div></div><div class="price">'+Number(a.price||0).toFixed(2)+'€</div></div>';}).join('')}else{body+='<div class="empty">Δεν υπάρχει ιστορικό.</div>'}document.getElementById('historyContent').innerHTML=body;document.getElementById('historyModal').classList.add('show')}
 function closeHistory(){historyModal.classList.remove('show')}
-(async function(){const a=localStorage.getItem('thh_access_token'),r=localStorage.getItem('thh_refresh_token');if(a&&r){await sb.auth.setSession({access_token:a,refresh_token:r});localStorage.removeItem('thh_access_token');localStorage.removeItem('thh_refresh_token')}else{await sb.auth.getSession()}})();
+(async function(){
+  try{
+    const hash=window.location.hash;
+    const params=new URLSearchParams(hash.startsWith('#')?hash.slice(1):'');
+    const access=params.get('access_token');
+    const refresh=params.get('refresh_token');
+    if(access&&refresh){
+      const result=await sb.auth.setSession({access_token:access,refresh_token:refresh});
+      if(result.error){document.getElementById('loginMsg').textContent='Δεν μπόρεσε να ολοκληρωθεί η σύνδεση: '+result.error.message;return}
+      history.replaceState(null,'',window.location.pathname+window.location.search);
+      return;
+    }
+    const a=localStorage.getItem('thh_access_token'),r=localStorage.getItem('thh_refresh_token');
+    if(a&&r){
+      await sb.auth.setSession({access_token:a,refresh_token:r});
+      localStorage.removeItem('thh_access_token');
+      localStorage.removeItem('thh_refresh_token');
+      return;
+    }
+    await sb.auth.getSession();
+  }catch(err){
+    document.getElementById('loginMsg').textContent='Σφάλμα αρχικοποίησης σύνδεσης.';
+  }
+})();
 </script></body></html>
