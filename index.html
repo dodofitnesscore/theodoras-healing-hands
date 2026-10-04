@@ -54,57 +54,29 @@ function card(a){const c=clients.find(x=>x.id===a.client_id);return '<div class=
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 
 function renderClients(){
- let q='';
  const content=document.getElementById('content');
  content.innerHTML='<div class="section"><h3>Πελατολόγιο</h3><input id="search" class="input" placeholder="Αναζήτηση ονόματος ή τηλεφώνου..."></div><div id="clientRows"></div>';
  const search=document.getElementById('search');
  const rows=document.getElementById('clientRows');
  function draw(){
-  const needle=q.toLowerCase().trim();
-  const arr=clients.filter(function(c){return c.name.toLowerCase().includes(needle)||(c.phone||'').includes(needle)});
-  rows.innerHTML=arr.length?arr.map(function(c){
+  const needle=(search.value||'').toLowerCase().trim();
+  const arr=clients.filter(function(c){return (c.name||'').toLowerCase().includes(needle)||(c.phone||'').includes(needle)});
+  rows.innerHTML='';
+  if(!arr.length){rows.innerHTML='<div class="empty">Δεν βρέθηκαν πελάτες.</div>';return}
+  arr.forEach(function(c){
    const hist=appointments.filter(function(x){return x.client_id===c.id});
    const done=hist.filter(function(x){return x.status==='completed'});
    const total=done.reduce(function(s,x){return s+Number(x.price||0)},0);
-   return '<div class="client" data-client-id="'+c.id+'"><div style="display:flex;justify-content:space-between;gap:10px"><div><div class="name">'+esc(c.name)+'</div><div class="meta">'+esc(c.phone||'Χωρίς τηλέφωνο')+'</div></div><div style="text-align:right"><b>'+hist.length+'</b><div class="meta">ραντεβού</div></div></div><div class="meta">Σύνολο ολοκληρωμένων: '+total.toFixed(2)+'€</div></div>';
-  }).join(''):'<div class="empty">Δεν βρέθηκαν πελάτες.</div>';
-  rows.querySelectorAll('[data-client-id]').forEach(function(el){el.onclick=function(){showClient(el.getAttribute('data-client-id'))}});
+   const el=document.createElement('div');
+   el.className='client';
+   el.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px"><div><div class="name">'+esc(c.name)+'</div><div class="meta">'+esc(c.phone||'Χωρίς τηλέφωνο')+'</div></div><div style="text-align:right"><b>'+hist.length+'</b><div class="meta">ραντεβού</div></div></div><div class="meta">Σύνολο ολοκληρωμένων: '+total.toFixed(2)+'€</div><div style="margin-top:10px"><button class="small profileBtn">Προβολή καρτέλας & ιστορικού</button></div>';
+   el.querySelector('.profileBtn').onclick=function(){showClient(c.id)};
+   rows.appendChild(el);
+  });
  }
- search.oninput=function(e){q=e.target.value;draw()};
+ search.oninput=draw;
  draw();
-}
-function showClient(id){
- const c=clients.find(function(x){return x.id===id}); if(!c)return;
- const hist=appointments.filter(function(x){return x.client_id===id}).sort(function(a,b){return (b.date+b.time).localeCompare(a.date+a.time)});
- const done=hist.filter(function(x){return x.status==='completed'});
- const total=done.reduce(function(s,x){return s+Number(x.price||0)},0);
- const m=document.getElementById('modal');
- m.innerHTML='<div class="sheet"><h2>'+esc(c.name)+'</h2><div class="meta">'+esc(c.phone||'Χωρίς τηλέφωνο')+'</div><div class="meta">Ολοκληρωμένα: '+done.length+' · Σύνολο: '+total.toFixed(2)+'€</div><div class="actions"><button id="editClientBtn" class="small">Επεξεργασία στοιχείων</button><button id="closeClientBtn" class="small">Κλείσιμο</button></div><h3>Ιστορικό ραντεβού</h3>'+(hist.length?hist.map(function(x){return '<div class="card '+(x.status==='completed'?'done':'')+'"><div>'+x.date+'<br>'+x.time+'</div><div class="body"><div class="name">'+esc(x.service||'')+'</div><div class="meta">'+esc(x.location||'')+' · '+esc(x.payment||'')+'</div>'+(x.notes?'<div class="meta">'+esc(x.notes)+'</div>':'')+'</div><div class="price">'+Number(x.price||0).toFixed(2)+'€</div></div>'}).join(''):'<div class="empty">Δεν υπάρχει ιστορικό.</div>')+'</div>';
- m.classList.add('show');
- document.getElementById('closeClientBtn').onclick=function(){m.classList.remove('show')};
- document.getElementById('editClientBtn').onclick=function(){editClient(id)};
-}
-function editClient(id){
- const c=clients.find(function(x){return x.id===id}); if(!c)return;
- const m=document.getElementById('modal');
- m.innerHTML='<div class="sheet"><h2>Επεξεργασία πελάτη</h2><label>Όνομα</label><input id="cn" class="input"><label>Τηλέφωνο</label><input id="cp" class="input"><label>Σημειώσεις</label><textarea id="cnotes" class="input" rows="4"></textarea><div class="btns"><button id="cancelClient" class="secondary">Άκυρο</button><button id="saveClient" class="primary">Αποθήκευση</button></div></div>';
- document.getElementById('cn').value=c.name||'';
- document.getElementById('cp').value=c.phone||'';
- document.getElementById('cnotes').value=c.notes||'';
- m.classList.add('show');
- document.getElementById('cancelClient').onclick=function(){m.classList.remove('show')};
- document.getElementById('saveClient').onclick=async function(){
-  const name=document.getElementById('cn').value.trim();
-  if(!name){alert('Συμπλήρωσε όνομα.');return}
-  const phoneValue=document.getElementById('cp').value.trim();
-  const notesValue=document.getElementById('cnotes').value.trim();
-  const r=await api('/rest/v1/clients?id=eq.'+id,{method:'PATCH',body:JSON.stringify({name:name,phone:phoneValue,notes:notesValue})});
-  c.name=name;c.phone=phoneValue;c.notes=notesValue;
-  if(!r){} 
-  m.classList.remove('show');renderClients();
- };
-}
-function renderIncome(){let ym=cursor.getFullYear()+'-'+String(cursor.getMonth()+1).padStart(2,'0'),arr=appointments.filter(a=>a.date.startsWith(ym)),done=arr.filter(a=>a.status==='completed'),sum=done.reduce((s,a)=>s+Number(a.price||0),0);document.getElementById('content').innerHTML='<div class="bar"><button class="nav" id="prevI">‹</button><h2>'+ym+'</h2><button class="nav" id="nextI">›</button></div><div class="stats"><div class="stat"><span>Έσοδα</span><b>'+sum.toFixed(2)+'€</b></div><div class="stat"><span>Ολοκληρωμένα</span><b>'+done.length+'</b></div></div><div class="section">'+(arr.map(a=>'<div class="card '+(a.status==='completed'?'':'done')+'"><div>'+a.date.slice(8)+'<br>'+a.time+'</div><div class="body"><div class="name">'+esc((clients.find(c=>c.id===a.client_id)||{}).name||'Πελάτης')+'</div><div class="meta">'+esc(a.service||'')+' · '+esc(a.location||'')+'</div></div><div class="price">'+Number(a.price||0).toFixed(2)+'€</div></div>').join('')||'<div class="empty">Δεν υπάρχουν ραντεβού.</div>')+'</div>';document.getElementById('prevI').onclick=()=>{cursor=new Date(cursor.getFullYear(),cursor.getMonth()-1,1);showTab('income')};document.getElementById('nextI').onclick=()=>{cursor=new Date(cursor.getFullYear(),cursor.getMonth()+1,1);showTab('income')}}
+}function renderIncome(){let ym=cursor.getFullYear()+'-'+String(cursor.getMonth()+1).padStart(2,'0'),arr=appointments.filter(a=>a.date.startsWith(ym)),done=arr.filter(a=>a.status==='completed'),sum=done.reduce((s,a)=>s+Number(a.price||0),0);document.getElementById('content').innerHTML='<div class="bar"><button class="nav" id="prevI">‹</button><h2>'+ym+'</h2><button class="nav" id="nextI">›</button></div><div class="stats"><div class="stat"><span>Έσοδα</span><b>'+sum.toFixed(2)+'€</b></div><div class="stat"><span>Ολοκληρωμένα</span><b>'+done.length+'</b></div></div><div class="section">'+(arr.map(a=>'<div class="card '+(a.status==='completed'?'':'done')+'"><div>'+a.date.slice(8)+'<br>'+a.time+'</div><div class="body"><div class="name">'+esc((clients.find(c=>c.id===a.client_id)||{}).name||'Πελάτης')+'</div><div class="meta">'+esc(a.service||'')+' · '+esc(a.location||'')+'</div></div><div class="price">'+Number(a.price||0).toFixed(2)+'€</div></div>').join('')||'<div class="empty">Δεν υπάρχουν ραντεβού.</div>')+'</div>';document.getElementById('prevI').onclick=()=>{cursor=new Date(cursor.getFullYear(),cursor.getMonth()-1,1);showTab('income')};document.getElementById('nextI').onclick=()=>{cursor=new Date(cursor.getFullYear(),cursor.getMonth()+1,1);showTab('income')}}
 function openForm(id){let a=id?appointments.find(x=>x.id===id):null,c=a?clients.find(x=>x.id===a.client_id):null;const m=document.getElementById('modal');m.innerHTML='<div class="sheet"><h2>'+(a?'Επεξεργασία':'Νέο')+' Ραντεβού</h2><label class="label">Όνομα</label><input class="input" id="fn" value="'+esc(c?.name||'')+'"><label class="label">Τηλέφωνο</label><input class="input" id="fp" value="'+esc(c?.phone||'')+'"><div class="row"><div><label class="label">Ημερομηνία</label><input class="input" id="fd" type="date" value="'+(a?.date||iso(selected))+'"></div><div><label class="label">Ώρα</label><input class="input" id="ft" type="time" value="'+(a?.time||'')+'"></div></div><div class="row"><div><label class="label">Μασάζ</label><select class="input" id="fs"><option>30 min Massage</option><option>60 min Massage</option><option>90 min Massage</option></select></div><div><label class="label">Τοποθεσία</label><select class="input" id="fl"><option>Κατ οίκον</option><option>Studio</option><option>Ξενοδοχείο</option></select></div></div><div class="row"><div><label class="label">Ποσό (€)</label><input class="input" id="fprice" type="number" step=".01"></div><div><label class="label">Πληρωμή</label><select class="input" id="fpay"><option>Μετρητά</option><option>POS</option><option>Κατάθεση</option><option>Εκκρεμεί</option></select></div></div><label class="label">Σημειώσεις</label><textarea class="input" id="fnote" rows="3"></textarea><div class="btns"><button class="secondary" id="close">Άκυρο</button><button class="primary" id="save">Αποθήκευση</button></div></div>';if(a){document.getElementById('fs').value=a.service||'60 min Massage';document.getElementById('fl').value=a.location||'Κατ οίκον';document.getElementById('fprice').value=a.price||'';document.getElementById('fpay').value=a.payment||'Μετρητά';document.getElementById('fnote').value=a.notes||''}m.classList.add('show');document.getElementById('close').onclick=()=>m.classList.remove('show');document.getElementById('save').onclick=()=>saveAppointment(id)}
 async function saveAppointment(id){try{let name=document.getElementById('fn').value.trim();if(!name||!document.getElementById('fd').value||!document.getElementById('ft').value)return alert('Συμπλήρωσε όνομα, ημερομηνία και ώρα.');let c=clients.find(x=>x.name.toLowerCase()===name.toLowerCase());if(!c){let r=await api('/rest/v1/clients',{method:'POST',headers:{'Prefer':'return=representation'},body:JSON.stringify({user_id:userId,name,phone:document.getElementById('fp').value.trim()})});c=r[0];clients.push(c)}let row={user_id:userId,client_id:c.id,date:document.getElementById('fd').value,time:document.getElementById('ft').value,service:document.getElementById('fs').value,duration_minutes:parseInt(document.getElementById('fs').value)||60,location:document.getElementById('fl').value,price:Number(document.getElementById('fprice').value||0),payment:document.getElementById('fpay').value,notes:document.getElementById('fnote').value.trim()};if(id)await api('/rest/v1/appointments?id=eq.'+id,{method:'PATCH',body:JSON.stringify(row)});else await api('/rest/v1/appointments',{method:'POST',headers:{'Prefer':'return=representation'},body:JSON.stringify(row)});document.getElementById('modal').classList.remove('show');await loadData()}catch(e){alert(e.message)}}
 async function toggleDone(id){let a=appointments.find(x=>x.id===id),r=await api('/rest/v1/appointments?id=eq.'+id,{method:'PATCH',body:JSON.stringify({status:a.status==='completed'?'scheduled':'completed'})});await loadData()}
