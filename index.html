@@ -56,8 +56,7 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&l
 function renderClients(){
  const content=document.getElementById('content');
  content.innerHTML='<div class="section"><h3>Πελατολόγιο</h3><input id="search" class="input" placeholder="Αναζήτηση ονόματος ή τηλεφώνου..."></div><div id="clientRows"></div>';
- const search=document.getElementById('search');
- const rows=document.getElementById('clientRows');
+ const search=document.getElementById('search'),rows=document.getElementById('clientRows');
  function draw(){
   const needle=(search.value||'').toLowerCase().trim();
   const arr=clients.filter(function(c){return (c.name||'').toLowerCase().includes(needle)||(c.phone||'').includes(needle)});
@@ -69,35 +68,38 @@ function renderClients(){
    const total=done.reduce(function(s,x){return s+Number(x.price||0)},0);
    const el=document.createElement('div');
    el.className='client';
-   el.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px"><div><div class="name">'+esc(c.name)+'</div><div class="meta">'+esc(c.phone||'Χωρίς τηλέφωνο')+'</div></div><div style="text-align:right"><b>'+hist.length+'</b><div class="meta">ραντεβού</div></div></div><div class="meta">Σύνολο ολοκληρωμένων: '+total.toFixed(2)+'€</div><div style="margin-top:10px"><button class="small profileBtn">Προβολή καρτέλας & ιστορικού</button></div>';
-   el.querySelector('.profileBtn').onclick=function(){showClient(c.id)};
+   el.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px"><div><div class="name">'+esc(c.name)+'</div><div class="meta">'+esc(c.phone||'Χωρίς τηλέφωνο')+'</div></div><div style="text-align:right"><b>'+hist.length+'</b><div class="meta">ραντεβού</div></div></div><div class="meta">Σύνολο ολοκληρωμένων: '+total.toFixed(2)+'€</div><div style="margin-top:10px"><button class="small profileBtn" type="button">Προβολή καρτέλας & ιστορικού</button></div>';
+   el.querySelector('.profileBtn').addEventListener('click',function(e){e.preventDefault();e.stopPropagation();showClient(c.id);});
    rows.appendChild(el);
   });
  }
- search.oninput=draw;
- draw();
-}function showClient(id){
- const c=clients.find(x=>x.id===id);
+ search.addEventListener('input',draw);draw();
+}
+function showClient(id){
+ const c=clients.find(function(x){return x.id===id});
  if(!c){alert('Δεν βρέθηκε ο πελάτης.');return}
- const hist=appointments.filter(x=>x.client_id===id).sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time));
- const done=hist.filter(x=>x.status==='completed');
- const total=done.reduce((s,x)=>s+Number(x.price||0),0);
- const m=document.getElementById('modal');
- m.innerHTML='<div class="sheet"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div><h2 style="margin:0 0 6px">'+esc(c.name)+'</h2><div class="meta">'+esc(c.phone||'Χωρίς τηλέφωνο')+'</div></div><button class="small" id="clientClose">Κλείσιμο</button></div><div class="stats" style="padding:15px 0 8px"><div class="stat"><span>Ολοκληρωμένα</span><b>'+done.length+'</b></div><div class="stat"><span>Έσοδα</span><b>'+total.toFixed(2)+'€</b></div></div><div class="section" style="padding:8px 0"><h3>Ιστορικό ραντεβού</h3>'+(hist.length?hist.map(function(a){return '<div class="card '+(a.status==='completed'?'done':'')+'"><div><b>'+esc(a.date)+'</b><br>'+esc(a.time)+'</div><div class="body"><div class="name">'+esc(a.service||'Μασάζ')+'</div><div class="meta">'+esc(a.location||'')+' · '+esc(a.payment||'')+(a.notes?' · '+esc(a.notes):'')+'</div></div><div class="price">'+Number(a.price||0).toFixed(2)+'€</div></div>'}).join(''):'<div class="empty">Δεν υπάρχει ιστορικό ραντεβού.</div>')+'</div><div class="btns"><button class="secondary" id="editClientBtn">Επεξεργασία πελάτη</button></div></div>';
- m.classList.add('show');
- document.getElementById('clientClose').onclick=()=>m.classList.remove('show');
- document.getElementById('editClientBtn').onclick=()=>editClient(id);
+ const hist=appointments.filter(function(x){return x.client_id===id}).sort(function(a,b){return (b.date+b.time).localeCompare(a.date+a.time)});
+ const done=hist.filter(function(x){return x.status==='completed'});
+ const total=done.reduce(function(s,x){return s+Number(x.price||0)},0);
+ const fab=document.getElementById('fab');
+ if(fab)fab.style.display='none';
+ document.getElementById('content').innerHTML='<div class="section"><button class="small" id="backClients" type="button">← Πίσω στους πελάτες</button><div style="margin:18px 0"><h2 style="font:24px Georgia,serif;margin:0 0 6px">'+esc(c.name)+'</h2><div class="meta">'+esc(c.phone||'Χωρίς τηλέφωνο')+'</div></div><div class="stats" style="padding:0 0 15px"><div class="stat"><span>Ολοκληρωμένα</span><b>'+done.length+'</b></div><div class="stat"><span>Έσοδα</span><b>'+total.toFixed(2)+'€</b></div></div><h3>Ιστορικό ραντεβού</h3>'+(hist.length?hist.map(function(a){return '<div class="card '+(a.status==='completed'?'done':'')+'"><div><b>'+esc(a.date)+'</b><br>'+esc(a.time)+'</div><div class="body"><div class="name">'+esc(a.service||'Μασάζ')+'</div><div class="meta">'+esc(a.location||'')+' · '+esc(a.payment||'')+(a.notes?' · '+esc(a.notes):'')+'</div></div><div class="price">'+Number(a.price||0).toFixed(2)+'€</div></div>'}).join(''):'<div class="empty">Δεν υπάρχει ιστορικό ραντεβού.</div>')+'<div class="btns"><button class="secondary" id="editClientBtn" type="button">Επεξεργασία πελάτη</button></div></div>';
+ document.getElementById('clientsBtn').classList.add('on');
+ document.getElementById('calBtn').classList.remove('on');
+ document.getElementById('incomeBtn').classList.remove('on');
+ document.getElementById('backClients').onclick=function(){if(fab)fab.style.display='block';showTab('clients')};
+ document.getElementById('editClientBtn').onclick=function(){editClient(id)};
 }
 function editClient(id){
- const c=clients.find(x=>x.id===id);if(!c)return;
+ const c=clients.find(function(x){return x.id===id});if(!c)return;
  const m=document.getElementById('modal');
- m.innerHTML='<div class="sheet"><h2>Επεξεργασία πελάτη</h2><label class="label">Όνομα</label><input class="input" id="ecn" value="'+esc(c.name||'')+'"><label class="label">Τηλέφωνο</label><input class="input" id="ecp" value="'+esc(c.phone||'')+'"><label class="label">Σημειώσεις</label><textarea class="input" id="ecnnote" rows="4">'+esc(c.notes||'')+'</textarea><div class="btns"><button class="secondary" id="ecclose">Άκυρο</button><button class="primary" id="ecsave">Αποθήκευση</button></div></div>';
+ m.innerHTML='<div class="sheet"><h2>Επεξεργασία πελάτη</h2><label class="label">Όνομα</label><input class="input" id="ecn" value="'+esc(c.name||'')+'"><label class="label">Τηλέφωνο</label><input class="input" id="ecp" value="'+esc(c.phone||'')+'"><label class="label">Σημειώσεις</label><textarea class="input" id="ecnnote" rows="4">'+esc(c.notes||'')+'</textarea><div class="btns"><button class="secondary" id="ecclose" type="button">Άκυρο</button><button class="primary" id="ecsave" type="button">Αποθήκευση</button></div></div>';
  m.classList.add('show');
- document.getElementById('ecclose').onclick=()=>m.classList.remove('show');
+ document.getElementById('ecclose').onclick=function(){m.classList.remove('show')};
  document.getElementById('ecsave').onclick=async function(){
   try{
    const name=document.getElementById('ecn').value.trim();if(!name){alert('Συμπλήρωσε όνομα.');return}
-   await api('/rest/v1/clients?id=eq.'+id,{method:'PATCH',body:JSON.stringify({name,phone:document.getElementById('ecp').value.trim(),notes:document.getElementById('ecnnote').value.trim()})});
+   await api('/rest/v1/clients?id=eq.'+id,{method:'PATCH',body:JSON.stringify({name:name,phone:document.getElementById('ecp').value.trim(),notes:document.getElementById('ecnnote').value.trim()})});
    m.classList.remove('show');await loadData();showTab('clients');
   }catch(e){alert(e.message)}
  };
