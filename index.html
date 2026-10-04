@@ -58,6 +58,18 @@ function openForm(id){let a=id?appointments.find(x=>x.id===id):null,c=a?clients.
 async function saveAppointment(id){try{let name=document.getElementById('fn').value.trim();if(!name||!document.getElementById('fd').value||!document.getElementById('ft').value)return alert('Συμπλήρωσε όνομα, ημερομηνία και ώρα.');let c=clients.find(x=>x.name.toLowerCase()===name.toLowerCase());if(!c){let r=await api('/rest/v1/clients',{method:'POST',headers:{'Prefer':'return=representation'},body:JSON.stringify({user_id:userId,name,phone:document.getElementById('fp').value.trim()})});c=r[0];clients.push(c)}let row={user_id:userId,client_id:c.id,date:document.getElementById('fd').value,time:document.getElementById('ft').value,service:document.getElementById('fs').value,duration_minutes:parseInt(document.getElementById('fs').value)||60,location:document.getElementById('fl').value,price:Number(document.getElementById('fprice').value||0),payment:document.getElementById('fpay').value,notes:document.getElementById('fnote').value.trim()};if(id)await api('/rest/v1/appointments?id=eq.'+id,{method:'PATCH',body:JSON.stringify(row)});else await api('/rest/v1/appointments',{method:'POST',headers:{'Prefer':'return=representation'},body:JSON.stringify(row)});document.getElementById('modal').classList.remove('show');await loadData()}catch(e){alert(e.message)}}
 async function toggleDone(id){let a=appointments.find(x=>x.id===id),r=await api('/rest/v1/appointments?id=eq.'+id,{method:'PATCH',body:JSON.stringify({status:a.status==='completed'?'scheduled':'completed'})});await loadData()}
 async function removeAppt(id){if(confirm('Να διαγραφεί το ραντεβού;')){await api('/rest/v1/appointments?id=eq.'+id,{method:'DELETE'});await loadData()}}
-(function start(){const t=localStorage.getItem('thh_access');if(t){accessToken=t;userId=jwtSub(t);loadData().catch(()=>loginUI())}})();
-function loginUI(){document.getElementById('root').innerHTML='<div class="login"><div class="box"><div class="brand">Theodora\'s Healing Hands</div><p class="muted">Σύνδεση στην online εφαρμογή ραντεβού και πελατολογίου.</p><label class="label">Email</label><input class="input" id="email" type="email" autocomplete="email"><label class="label">Κωδικός</label><input class="input" id="password" type="password" autocomplete="current-password"><button class="btn" id="loginBtn">Σύνδεση</button><div id="loginMsg" class="msg"></div></div></div>';document.getElementById('loginBtn').onclick=authLogin)}
+window.addEventListener('load',async function(){
+ const token=localStorage.getItem('thh_access');
+ if(!token)return;
+ accessToken=token;
+ try{
+  const payload=JSON.parse(atob(token.split('.')[1]));
+  userId=payload.sub||'';
+  if(!userId)throw new Error('invalid session');
+  await loadData();
+ }catch(e){
+  localStorage.removeItem('thh_access');
+ }
+});
+function loginUI(){document.getElementById('root').innerHTML='<div class="login"><div class="box"><div class="brand">Theodora\'s Healing Hands</div><p class="muted">Σύνδεση στην online εφαρμογή ραντεβού και πελατολογίου.</p><label class="label">Email</label><input class="input" id="email" type="email" autocomplete="email"><label class="label">Κωδικός</label><input class="input" id="password" type="password" autocomplete="current-password"><button class="btn" id="loginBtn">Σύνδεση</button><div id="loginMsg" class="msg"></div></div></div>';document.getElementById('loginBtn').onclick=authLogin}
 </script></body></html>
