@@ -1,0 +1,12 @@
+{
+  "name": "Theodora's Healing Hands",
+  "short_name": "Healing Hands",
+  "description": "Ημερολόγιο ραντεβού, έσοδα και διαχείριση πελατών.",
+  "lang": "el",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#111111",
+  "icons": []
+}
