@@ -36,6 +36,7 @@ async function loadData(){
  clients=cr||[];appointments=ar||[];renderApp();
 }
 function renderApp(){
+ if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
  document.getElementById('root').innerHTML='<div class="head"><div class="brand" style="color:#fff">Theodora\'s Healing Hands</div><div style="font-size:11px;opacity:.7">Ημερολόγιο • Πελάτες • Έσοδα</div></div><div class="tabs"><button id="calBtn" class="on">Ημερολόγιο</button><button id="clientsBtn">Πελάτες</button><button id="incomeBtn">Έσοδα</button><button id="remindersBtn">🔔 Υπενθυμίσεις</button></div><div id="content"></div><button id="fab" class="fab">＋ Νέο Ραντεβού</button><div id="modal" class="modal"></div>';
  document.getElementById('calBtn').onclick=()=>showTab('cal');document.getElementById('clientsBtn').onclick=()=>showTab('clients');document.getElementById('incomeBtn').onclick=()=>showTab('income');document.getElementById('remindersBtn').onclick=()=>showTab('reminders');document.getElementById('fab').onclick=()=>openForm();showTab('cal');startReminderWatcher();
 }
@@ -106,11 +107,21 @@ function editClient(id){
 }
 function reminderMinutes(){return Number(localStorage.getItem('thh_reminder_minutes')||60)}
 function reminderEnabled(){return localStorage.getItem('thh_reminders_enabled')==='1'}
+const VAPID_PUBLIC_KEY='BEndZkHj2vMFmEpdU8Cyo3kp2Z_1jKyrnc2PCtIrcxQms28OzE3IPm_6BVZaupbpEQVo1fvdXRQkqUeHGxraH8A';
+function urlBase64ToUint8Array(base64String){const padding='='.repeat((4-base64String.length%4)%4),base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/');const raw=atob(base64);return Uint8Array.from([...raw].map(ch=>ch.charCodeAt(0)))}
+async function registerServiceWorker(){if(!('serviceWorker' in navigator))throw new Error('Το Web Push δεν υποστηρίζεται εδώ.');return await navigator.serviceWorker.register('./sw.js')}
+async function enableWebPush(){
+ if(!('Notification' in window)||!('serviceWorker' in navigator)||!('PushManager' in window)){throw new Error('Άνοιξε την εφαρμογή από το εικονίδιο στην Αρχική οθόνη του iPhone.')}
+ const p=await Notification.requestPermission(); if(p!=='granted')throw new Error('Οι ειδοποιήσεις δεν ενεργοποιήθηκαν.');
+ const reg=await registerServiceWorker();
+ let sub=await reg.pushManager.getSubscription();
+ if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});
+ const rr=await fetch(SUPA+'/functions/v1/register-push',{method:'POST',headers:{'apikey':APIKEY,'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'},body:JSON.stringify({subscription:sub.toJSON(),reminder_minutes:reminderMinutes()})});
+ if(!rr.ok){const j=await rr.json().catch(()=>({}));throw new Error(j.error||'Δεν έγινε η σύνδεση Web Push.')}
+ localStorage.setItem('thh_reminders_enabled','1');localStorage.setItem('thh_push_enabled','1');
+}
 async function enableReminders(){
- if(!('Notification' in window)){alert('Το iPhone δεν υποστηρίζει ειδοποιήσεις από αυτό το περιβάλλον. Πρόσθεσε την εφαρμογή στην Αρχική οθόνη και άνοιξέ την από εκεί.');return}
- const p=await Notification.requestPermission();
- if(p==='granted'){localStorage.setItem('thh_reminders_enabled','1');renderReminders();sendTestNotification()}
- else{localStorage.setItem('thh_reminders_enabled','0');alert('Οι ειδοποιήσεις δεν ενεργοποιήθηκαν.')}
+ try{await enableWebPush();renderReminders();sendTestNotification()}catch(e){alert(e.message)}
 }
 function disableReminders(){localStorage.setItem('thh_reminders_enabled','0');renderReminders()}
 function sendTestNotification(){
@@ -129,7 +140,7 @@ function upcomingAppointments(){
 function renderReminders(){
  const arr=upcomingAppointments(),mins=reminderMinutes(),enabled=reminderEnabled();
  const opts='<option value="1440" '+(mins===1440?'selected':'')+'>24 ώρες πριν</option><option value="60" '+(mins===60?'selected':'')+'>1 ώρα πριν</option><option value="30" '+(mins===30?'selected':'')+'>30 λεπτά πριν</option>';
- document.getElementById('content').innerHTML='<div class="section"><h3>Υπενθυμίσεις ραντεβού</h3><div class="card"><div class="body"><div class="name">Ειδοποιήσεις</div><div class="meta">'+(enabled?'Ενεργές':'Ανενεργές')+'</div></div><button class="small" id="toggleReminder">'+(enabled?'Απενεργοποίηση':'Ενεργοποίηση')+'</button></div><label class="label">Υπενθύμιση</label><select class="input" id="reminderSelect">'+opts+'</select><div class="meta" style="margin-top:10px">Οι ειδοποιήσεις που βλέπεις εδώ λειτουργούν όταν η εφαρμογή είναι ανοιχτή. Για ειδοποίηση στο κλειδωμένο iPhone ενώ η εφαρμογή είναι κλειστή, χρειάζεται Web Push σύνδεση.</div><h3 style="margin-top:22px">Επόμενα ραντεβού</h3>'+(arr.length?arr.map(function(a){return '<div class="card"><div><b>'+esc(a.date)+'</b><br>'+esc(a.time)+'</div><div class="body"><div class="name">'+esc(clientName(a.client_id))+'</div><div class="meta">'+esc(a.service||'')+' · '+esc(a.location||'')+'<br>Υπενθύμιση: '+new Date(new Date(a.date+'T'+a.time).getTime()-mins*60000).toLocaleString('el-GR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div></div><div class="price">'+Number(a.price||0).toFixed(2)+'€</div></div>'}).join(''):'<div class="empty">Δεν υπάρχουν επόμενα ραντεβού μέσα στις επόμενες 7 ημέρες.</div>')+'</div>';
+ document.getElementById('content').innerHTML='<div class="section"><h3>Υπενθυμίσεις ραντεβού</h3><div class="card"><div class="body"><div class="name">Ειδοποιήσεις</div><div class="meta">'+(enabled?'Ενεργές':'Ανενεργές')+'</div></div><button class="small" id="toggleReminder">'+(enabled?'Απενεργοποίηση':'Ενεργοποίηση')+'</button></div><label class="label">Υπενθύμιση</label><select class="input" id="reminderSelect">'+opts+'</select><div class="meta" style="margin-top:10px">Οι υπενθυμίσεις λειτουργούν και όταν το iPhone είναι κλειδωμένο, αφού ενεργοποιήσεις Web Push από εδώ. 🔔</div><h3 style="margin-top:22px">Επόμενα ραντεβού</h3>'+(arr.length?arr.map(function(a){return '<div class="card"><div><b>'+esc(a.date)+'</b><br>'+esc(a.time)+'</div><div class="body"><div class="name">'+esc(clientName(a.client_id))+'</div><div class="meta">'+esc(a.service||'')+' · '+esc(a.location||'')+'<br>Υπενθύμιση: '+new Date(new Date(a.date+'T'+a.time).getTime()-mins*60000).toLocaleString('el-GR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div></div><div class="price">'+Number(a.price||0).toFixed(2)+'€</div></div>'}).join(''):'<div class="empty">Δεν υπάρχουν επόμενα ραντεβού μέσα στις επόμενες 7 ημέρες.</div>')+'</div>';
  document.getElementById('toggleReminder').onclick=function(){if(enabled)disableReminders();else enableReminders()};
  document.getElementById('reminderSelect').onchange=function(){localStorage.setItem('thh_reminder_minutes',this.value);renderReminders()};
 }
