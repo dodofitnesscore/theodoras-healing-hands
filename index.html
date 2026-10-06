@@ -117,12 +117,8 @@ async function enableWebPush(){
  let sub=await reg.pushManager.getSubscription();
  if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});
  const sj=sub.toJSON();
- const rr=await fetch(SUPA+'/rest/v1/push_subscriptions?on_conflict=endpoint',{
-   method:'POST',
-   headers:{'apikey':APIKEY,'Authorization':'Bearer '+accessToken,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=minimal'},
-   body:JSON.stringify({user_id:userId,endpoint:sj.endpoint,p256dh:sj.keys?.p256dh,auth:sj.keys?.auth,reminder_minutes:reminderMinutes(),updated_at:new Date().toISOString()})
- });
- if(!rr.ok){const j=await rr.json().catch(()=>({}));throw new Error(j.message||j.error||'Δεν έγινε η σύνδεση Web Push.')}
+ const rr=await fetch(SUPA+'/functions/v1/register-push',{method:'POST',headers:{'apikey':APIKEY,'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'},body:JSON.stringify({subscription:sj,reminder_minutes:reminderMinutes()})});
+ if(!rr.ok){const j=await rr.json().catch(()=>({}));throw new Error(j.error||j.message||'Δεν έγινε η σύνδεση Web Push.')}
  localStorage.setItem('thh_reminders_enabled','1');localStorage.setItem('thh_push_enabled','1');
 }
 async function enableReminders(){
